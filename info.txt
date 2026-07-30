@@ -1,0 +1,1 @@
+To run it: node server.js from the METARs folder, then open http://localhost:8791/.

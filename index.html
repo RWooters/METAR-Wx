@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>METAR Wx &mdash; Pilot Weather Briefing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#0a0e1a;
+    --bg-1:#0f1526;
+    --bg-2:#151d33;
+    --panel:rgba(255,255,255,0.04);
+    --panel-border:rgba(255,255,255,0.08);
+    --text-0:#eef1f8;
+    --text-1:#aab3c9;
+    --text-2:#6c7690;
+    --accent:#3b82f6;
+    --accent-glow:rgba(59,130,246,0.35);
+    --amber:#f5a623;
+    --vfr:#22c55e;
+    --mvfr:#3b82f6;
+    --ifr:#ef4444;
+    --lifr:#e14ce8;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,130,246,0.15), transparent),
+      radial-gradient(ellipse 60% 40% at 90% 10%, rgba(245,166,35,0.06), transparent),
+      linear-gradient(180deg, var(--bg-0), var(--bg-1) 40%, var(--bg-2));
+    background-attachment:fixed;
+    color:var(--text-0);
+    font-family:'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1080px;
+    margin:0 auto;
+    padding:24px 20px 64px;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    padding:8px 4px 28px;
+    flex-wrap:wrap;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .brand svg{ width:34px; height:34px; flex-shrink:0; }
+  .brand h1{
+    font-size:1.3rem;
+    font-weight:800;
+    letter-spacing:0.02em;
+    margin:0;
+  }
+  .brand span{
+    display:block;
+    font-size:0.72rem;
+    color:var(--text-2);
+    font-weight:500;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    margin-top:1px;
+  }
+  .zulu{
+    text-align:right;
+    font-family:'JetBrains Mono', monospace;
+  }
+  .zulu .time{
+    font-size:1.4rem;
+    font-weight:700;
+    color:var(--text-0);
+    letter-spacing:0.03em;
+  }
+  .zulu .date{
+    font-size:0.72rem;
+    color:var(--text-2);
+    letter-spacing:0.05em;
+  }
+
+  /* ---------- Search ---------- */
+  .search-panel{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:var(--radius);
+    padding:18px;
+    margin-bottom:20px;
+    backdrop-filter:blur(10px);
+  }
+  .search-row{
+    display:flex;
+    gap:10px;
+  }
+  #icaoInput{
+    flex:1;
+    background:rgba(0,0,0,0.25);
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    color:var(--text-0);
+    font-family:'JetBrains Mono', monospace;
+    font-size:1.1rem;
+    font-weight:600;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    padding:12px 14px;
+    outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  #icaoInput::placeholder{ color:var(--text-2); letter-spacing:0.05em; text-transform:none; font-weight:400; }
+  #icaoInput:focus{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+  .btn{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    padding:12px 20px;
+    font-size:0.95rem;
+    font-weight:600;
+    cursor:pointer;
+    transition:filter .15s, transform .1s;
+    white-space:nowrap;
+  }
+  .btn:hover{ filter:brightness(1.12); }
+  .btn:active{ transform:scale(0.97); }
+  .btn.ghost{
+    background:transparent;
+    border:1px solid var(--panel-border);
+    color:var(--text-1);
+  }
+  .btn.ghost:hover{ border-color:var(--accent); color:var(--text-0); }
+
+  .chip-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:14px;
+  }
+
+  .plan-toggle-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  .plan-toggle{
+    display:inline-flex;
+    background:rgba(0,0,0,0.3);
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    padding:3px;
+    gap:2px;
+  }
+  .plan-btn{
+    background:transparent;
+    border:none;
+    color:var(--text-2);
+    font-size:0.82rem;
+    font-weight:700;
+    letter-spacing:0.04em;
+    padding:6px 16px;
+    border-radius:8px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .plan-btn:hover{ color:var(--text-0); }
+  .plan-btn.active{
+    background:var(--accent);
+    color:#fff;
+  }
+  .plan-btn.active[data-mode="IFR"]{
+    background:var(--ifr);
+  }
+  .plan-hint{
+    font-size:0.76rem;
+    color:var(--text-2);
+    font-style:italic;
+  }
+  .chip-label{
+    font-size:0.68rem;
+    color:var(--text-2);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    font-weight:600;
+    align-self:center;
+    margin-right:2px;
+  }
+  .chip{
+    background:rgba(255,255,255,0.05);
+    border:1px solid var(--panel-border);
+    color:var(--text-1);
+    font-family:'JetBrains Mono', monospace;
+    font-size:0.8rem;
+    font-weight:600;
+    letter-spacing:0.04em;
+    padding:6px 12px;
+    border-radius:20px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    transition:border-color .15s, color .15s;
+  }
+  .chip:hover{ border-color:var(--accent); color:var(--text-0); }
+  .chip .dot{
+    width:7px; height:7px; border-radius:50%;
+    flex-shrink:0;
+  }
+
+  /* ---------- Status / Messages ---------- */
+  #statusMsg{
+    text-align:center;
+    color:var(--text-2);
+    font-size:0.9rem;
+    padding:40px 0;
+  }
+  #statusMsg.error{ color:#f87171; }
+
+  /* ---------- Main METAR Card ---------- */
+  #metarCard{ display:none; }
+
+  .station-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-bottom:18px;
+  }
+  .station-id{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .station-id h2{
+    font-size:2rem;
+    font-weight:800;
+    margin:0;
+    letter-spacing:0.02em;
+    font-family:'JetBrains Mono', monospace;
+  }
+  .station-name{
+    font-size:0.95rem;
+    color:var(--text-1);
+    margin-top:2px;
+  }
+  .station-meta{
+    font-size:0.78rem;
+    color:var(--text-2);
+    margin-top:4px;
+  }
+
+  .flight-cat{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    min-width:110px;
+  }
+  .flight-cat .badge{
+    font-size:1.15rem;
+    font-weight:800;
+    letter-spacing:0.06em;
+    padding:8px 20px;
+    border-radius:10px;
+    color:#04110a;
+  }
+  .flight-cat .badge-desc{
+    font-size:0.68rem;
+    color:var(--text-2);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .obs-age{
+    font-size:0.78rem;
+    color:var(--amber);
+    margin-top:6px;
+    font-weight:600;
+  }
+
+  .metric-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(160px,1fr));
+    gap:12px;
+    margin-bottom:18px;
+  }
+  .metric{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:12px;
+    padding:14px 16px;
+    backdrop-filter:blur(10px);
+  }
+  .metric .label{
+    font-size:0.68rem;
+    color:var(--text-2);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    font-weight:700;
+    margin-bottom:8px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .metric .value{
+    font-size:1.3rem;
+    font-weight:700;
+    color:var(--text-0);
+    line-height:1.25;
+  }
+  .metric .sub{
+    font-size:0.78rem;
+    color:var(--text-2);
+    margin-top:3px;
+  }
+  .wind-metric{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .wind-metric .compass{ flex-shrink:0; }
+  .cloud-list{
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .cloud-list .layer{
+    font-size:0.95rem;
+    font-weight:600;
+  }
+
+  .raw-metar{
+    background:rgba(0,0,0,0.3);
+    border:1px solid var(--panel-border);
+    border-radius:12px;
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .raw-metar .label{
+    font-size:0.68rem;
+    color:var(--text-2);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    font-weight:700;
+    margin-bottom:8px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .raw-metar code{
+    font-family:'JetBrains Mono', monospace;
+    font-size:0.92rem;
+    color:#9ad1ff;
+    line-height:1.6;
+    word-break:break-word;
+  }
+  .copy-btn{
+    background:none;
+    border:1px solid var(--panel-border);
+    color:var(--text-2);
+    font-size:0.68rem;
+    padding:3px 9px;
+    border-radius:6px;
+    cursor:pointer;
+    text-transform:none;
+    letter-spacing:0;
+    font-weight:600;
+  }
+  .copy-btn:hover{ color:var(--text-0); border-color:var(--accent); }
+
+  .refresh-bar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:0.78rem;
+    color:var(--text-2);
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .refresh-bar button{ font-size:0.78rem; padding:8px 14px; }
+
+  #tafCard{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:var(--radius);
+    padding:18px;
+    margin-bottom:20px;
+    backdrop-filter:blur(10px);
+  }
+  .taf-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:14px;
+  }
+  .taf-header h3{
+    margin:0;
+    font-size:1.05rem;
+    font-weight:700;
+    color:var(--lifr);
+  }
+  .taf-sub{
+    font-size:0.76rem;
+    color:var(--text-2);
+    font-family:'JetBrains Mono', monospace;
+  }
+  .taf-periods{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .taf-period{
+    display:grid;
+    grid-template-columns:150px 70px 1fr;
+    gap:12px;
+    align-items:start;
+    background:rgba(0,0,0,0.22);
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    padding:12px 14px;
+  }
+  .taf-period .when{
+    font-family:'JetBrains Mono', monospace;
+    font-size:0.78rem;
+    color:var(--text-1);
+  }
+  .taf-period .when .change-type{
+    display:block;
+    font-size:0.68rem;
+    color:var(--amber);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    font-weight:700;
+    margin-bottom:2px;
+  }
+  .taf-period .cat{
+    display:flex;
+    align-items:flex-start;
+  }
+  .taf-period .cat span{
+    font-size:0.72rem;
+    font-weight:800;
+    letter-spacing:0.03em;
+    padding:3px 9px;
+    border-radius:6px;
+    color:#04110a;
+  }
+  .taf-period .detail{
+    font-size:0.86rem;
+    color:var(--text-0);
+    line-height:1.55;
+  }
+  .taf-period .detail .wx{ color:var(--text-1); }
+  #tafStatus{
+    text-align:center;
+    color:var(--text-2);
+    font-size:0.85rem;
+    padding:16px 0;
+  }
+  @media (max-width:560px){
+    .taf-period{ grid-template-columns:1fr; }
+  }
+
+  footer{
+    text-align:center;
+    color:var(--text-2);
+    font-size:0.75rem;
+    margin-top:40px;
+    line-height:1.7;
+  }
+  footer .disclaimer{
+    color:#e8a33d;
+    font-weight:600;
+    margin-bottom:6px;
+  }
+
+  @media (max-width:520px){
+    .station-id h2{ font-size:1.5rem; }
+    .flight-cat{ min-width:auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2.5 2v1.5l4-1 4 1V21l-2.5-2v-5.5l8 2.5z" fill="#3b82f6"/>
+      </svg>
+      <div>
+        <h1>METAR&nbsp;Wx</h1>
+        <span>Pilot Weather Briefing</span>
+      </div>
+    </div>
+    <div class="zulu">
+      <div class="time" id="zuluTime">--:--:--Z</div>
+      <div class="date" id="zuluDate">-- --- ----</div>
+    </div>
+  </header>
+
+  <div class="search-panel">
+    <div class="search-row">
+      <input id="icaoInput" type="text" maxlength="4" placeholder="ICAO code, e.g. KJFK" autocomplete="off" spellcheck="false">
+      <button class="btn" id="lookupBtn">Look Up</button>
+    </div>
+    <div class="plan-toggle-row">
+      <span class="chip-label">Flight plan</span>
+      <div class="plan-toggle" id="planToggle" role="group" aria-label="Flight plan type">
+        <button class="plan-btn active" data-mode="VFR" type="button">VFR</button>
+        <button class="plan-btn" data-mode="IFR" type="button">IFR</button>
+      </div>
+      <span class="plan-hint" id="planHint">Current METAR only</span>
+    </div>
+    <div class="chip-row" id="quickAccess">
+      <span class="chip-label">Quick access</span>
+    </div>
+    <div class="chip-row" id="recentRow" style="display:none;">
+      <span class="chip-label">Recent</span>
+    </div>
+  </div>
+
+  <div id="statusMsg">Enter an ICAO airport code to fetch the current METAR.</div>
+
+  <div id="metarCard">
+    <div class="station-header">
+      <div class="station-id">
+        <div>
+          <h2 id="stIcao">----</h2>
+          <div class="station-name" id="stName">&mdash;</div>
+          <div class="station-meta" id="stMeta">&mdash;</div>
+        </div>
+      </div>
+      <div class="flight-cat">
+        <div class="badge" id="fltCatBadge">&mdash;</div>
+        <div class="badge-desc" id="fltCatDesc">flight category</div>
+        <div class="obs-age" id="obsAge"></div>
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric">
+        <div class="label">Wind</div>
+        <div class="wind-metric">
+          <svg class="compass" id="windCompass" width="52" height="52" viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="24" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>
+            <g id="windArrowGroup" transform="rotate(0 26 26)">
+              <line x1="26" y1="8" x2="26" y2="26" stroke="#f5a623" stroke-width="3" stroke-linecap="round"/>
+              <path d="M26 8 L21 17 L31 17 Z" fill="#f5a623"/>
+            </g>
+          </svg>
+          <div>
+            <div class="value" id="windValue">&mdash;</div>
+            <div class="sub" id="windSub"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric">
+        <div class="label">Visibility</div>
+        <div class="value" id="visValue">&mdash;</div>
+        <div class="sub" id="wxValue"></div>
+      </div>
+
+      <div class="metric">
+        <div class="label">Sky Condition</div>
+        <div class="cloud-list" id="cloudValue">&mdash;</div>
+      </div>
+
+      <div class="metric">
+        <div class="label">Temp / Dewpoint</div>
+        <div class="value" id="tempValue">&mdash;</div>
+        <div class="sub" id="spreadValue"></div>
+      </div>
+
+      <div class="metric">
+        <div class="label">Altimeter</div>
+        <div class="value" id="altimValue">&mdash;</div>
+        <div class="sub" id="altimSub"></div>
+      </div>
+
+      <div class="metric">
+        <div class="label">Observation Time</div>
+        <div class="value" id="obsTimeValue">&mdash;</div>
+        <div class="sub" id="obsTimeSub"></div>
+      </div>
+    </div>
+
+    <div class="raw-metar">
+      <div class="label">
+        <span>Raw METAR</span>
+        <button class="copy-btn" id="copyBtn">Copy</button>
+      </div>
+      <code id="rawMetar">&mdash;</code>
+    </div>
+
+    <div class="refresh-bar">
+      <span id="autoRefreshLabel">Auto-refresh in <strong id="countdown">--</strong></span>
+      <button class="btn ghost" id="refreshBtn">Refresh Now</button>
+    </div>
+  </div>
+
+  <div id="tafCard" style="display:none;">
+    <div class="taf-header">
+      <h3>TAF Forecast</h3>
+      <span class="taf-sub" id="tafValidity">&mdash;</span>
+    </div>
+    <div id="tafPeriods" class="taf-periods"></div>
+    <div class="raw-metar">
+      <div class="label">
+        <span>Raw TAF</span>
+        <button class="copy-btn" id="copyTafBtn">Copy</button>
+      </div>
+      <code id="rawTaf">&mdash;</code>
+    </div>
+  </div>
+  <div id="tafStatus" style="display:none;"></div>
+
+  <footer>
+    <div class="disclaimer">For situational awareness only &mdash; not a substitute for an official weather briefing or flight planning source.</div>
+    <div>Data courtesy of the NOAA/FAA Aviation Weather Center (aviationweather.gov).</div>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var QUICK_AIRPORTS = ["KJFK","KLAX","KORD","KATL","KDFW","KSEA","KDEN","KMIA"];
+  var API_URL = "/api/metar";
+  var TAF_API_URL = "/api/taf";
+  var REFRESH_MS = 5 * 60 * 1000;
+  var RECENT_KEY = "metarwx_recent";
+  var MAX_RECENT = 6;
+  var MODE_KEY = "metarwx_mode";
+
+  var els = {
+    icaoInput: document.getElementById("icaoInput"),
+    lookupBtn: document.getElementById("lookupBtn"),
+    quickAccess: document.getElementById("quickAccess"),
+    recentRow: document.getElementById("recentRow"),
+    statusMsg: document.getElementById("statusMsg"),
+    metarCard: document.getElementById("metarCard"),
+    stIcao: document.getElementById("stIcao"),
+    stName: document.getElementById("stName"),
+    stMeta: document.getElementById("stMeta"),
+    fltCatBadge: document.getElementById("fltCatBadge"),
+    fltCatDesc: document.getElementById("fltCatDesc"),
+    obsAge: document.getElementById("obsAge"),
+    windValue: document.getElementById("windValue"),
+    windSub: document.getElementById("windSub"),
+    windArrowGroup: document.getElementById("windArrowGroup"),
+    visValue: document.getElementById("visValue"),
+    wxValue: document.getElementById("wxValue"),
+    cloudValue: document.getElementById("cloudValue"),
+    tempValue: document.getElementById("tempValue"),
+    spreadValue: document.getElementById("spreadValue"),
+    altimValue: document.getElementById("altimValue"),
+    altimSub: document.getElementById("altimSub"),
+    obsTimeValue: document.getElementById("obsTimeValue"),
+    obsTimeSub: document.getElementById("obsTimeSub"),
+    rawMetar: document.getElementById("rawMetar"),
+    copyBtn: document.getElementById("copyBtn"),
+    countdown: document.getElementById("countdown"),
+    refreshBtn: document.getElementById("refreshBtn"),
+    zuluTime: document.getElementById("zuluTime"),
+    zuluDate: document.getElementById("zuluDate"),
+    planToggle: document.getElementById("planToggle"),
+    planHint: document.getElementById("planHint"),
+    tafCard: document.getElementById("tafCard"),
+    tafValidity: document.getElementById("tafValidity"),
+    tafPeriods: document.getElementById("tafPeriods"),
+    rawTaf: document.getElementById("rawTaf"),
+    copyTafBtn: document.getElementById("copyTafBtn"),
+    tafStatus: document.getElementById("tafStatus")
+  };
+
+  var CAT_COLORS = { VFR: "var(--vfr)", MVFR: "var(--mvfr)", IFR: "var(--ifr)", LIFR: "var(--lifr)" };
+  var CAT_DESC = {
+    VFR: "Visual Flight Rules",
+    MVFR: "Marginal VFR",
+    IFR: "Instrument Flight Rules",
+    LIFR: "Low IFR"
+  };
+
+  var CLOUD_COVER = {
+    CLR: "Clear", SKC: "Sky Clear", CAVOK: "Ceiling & Visibility OK",
+    FEW: "Few", SCT: "Scattered", BKN: "Broken", OVC: "Overcast",
+    OVX: "Indefinite Ceiling", VV: "Vertical Visibility"
+  };
+
+  var WX_INTENSITY = { "-": "Light", "+": "Heavy", "VC": "In the vicinity" };
+  var WX_DESCRIPTOR = {
+    MI:"Shallow", PR:"Partial", BC:"Patches", DR:"Drifting", BL:"Blowing",
+    SH:"Showers", TS:"Thunderstorm", FZ:"Freezing"
+  };
+  var WX_PHENOMENON = {
+    RA:"Rain", SN:"Snow", GR:"Hail", GS:"Small Hail/Snow Pellets", IC:"Ice Crystals",
+    PL:"Ice Pellets", UP:"Unknown Precipitation", BR:"Mist", FG:"Fog", FU:"Smoke",
+    VA:"Volcanic Ash", DU:"Widespread Dust", SA:"Sand", HZ:"Haze", PY:"Spray",
+    PO:"Dust/Sand Whirls", SQ:"Squall", FC:"Funnel Cloud", SS:"Sandstorm", DS:"Duststorm"
+  };
+
+  var refreshTimer = null;
+  var countdownTimer = null;
+  var currentIcao = null;
+  var currentMode = localStorage.getItem(MODE_KEY) === "IFR" ? "IFR" : "VFR";
+
+  function $create(tag, cls, text){
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  // ---------- Clock ----------
+  function tickClock(){
+    var now = new Date();
+    var hh = String(now.getUTCHours()).padStart(2,"0");
+    var mm = String(now.getUTCMinutes()).padStart(2,"0");
+    var ss = String(now.getUTCSeconds()).padStart(2,"0");
+    els.zuluTime.textContent = hh + ":" + mm + ":" + ss + "Z";
+    var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    els.zuluDate.textContent = days[now.getUTCDay()] + " " + now.getUTCDate() + " " + months[now.getUTCMonth()] + " " + now.getUTCFullYear();
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  // ---------- Recent stations ----------
+  function getRecent(){
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; }
+    catch(e){ return []; }
+  }
+  function pushRecent(icao){
+    var recent = getRecent().filter(function(i){ return i !== icao; });
+    recent.unshift(icao);
+    recent = recent.slice(0, MAX_RECENT);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+    renderRecent();
+  }
+  function renderRecent(){
+    var recent = getRecent();
+    els.recentRow.innerHTML = '<span class="chip-label">Recent</span>';
+    if (!recent.length){ els.recentRow.style.display = "none"; return; }
+    els.recentRow.style.display = "flex";
+    recent.forEach(function(icao){
+      var chip = $create("button", "chip", icao);
+      chip.addEventListener("click", function(){ loadStation(icao); });
+      els.recentRow.appendChild(chip);
+    });
+  }
+
+  function renderQuickAccess(){
+    QUICK_AIRPORTS.forEach(function(icao){
+      var chip = $create("button", "chip", icao);
+      chip.addEventListener("click", function(){ loadStation(icao); });
+      els.quickAccess.appendChild(chip);
+    });
+  }
+
+  // ---------- Helpers ----------
+  function cToF(c){ return (c * 9/5) + 32; }
+  function hpaToInHg(hpa){ return hpa * 0.0295299830714; }
+
+  function computeFlightCategory(visibMiles, ceilingFt){
+    if (ceilingFt === null && visibMiles === null) return null;
+    var ceiling = ceilingFt === null ? Infinity : ceilingFt;
+    var visib = visibMiles === null ? Infinity : visibMiles;
+    if (ceiling < 500 || visib < 1) return "LIFR";
+    if (ceiling < 1000 || visib < 3) return "IFR";
+    if (ceiling <= 3000 || visib <= 5) return "MVFR";
+    return "VFR";
+  }
+
+  function getCeiling(clouds){
+    if (!clouds || !clouds.length) return null;
+    var ceilingLayers = clouds.filter(function(c){
+      return c.cover === "BKN" || c.cover === "OVC" || c.cover === "VV";
+    });
+    if (!ceilingLayers.length) return null;
+    return Math.min.apply(null, ceilingLayers.map(function(c){ return c.base; }));
+  }
+
+  function parseVisib(visib){
+    if (visib === null || visib === undefined) return null;
+    if (typeof visib === "number") return visib;
+    var cleaned = String(visib).replace("+", "");
+    var n = parseFloat(cleaned);
+    return isNaN(n) ? null : n;
+  }
+
+  function decodeWx(wxString){
+    if (!wxString) return "";
+    return wxString.split(" ").map(function(token){
+      var remaining = token;
+      var parts = [];
+      Object.keys(WX_INTENSITY).forEach(function(k){
+        if (remaining.indexOf(k) === 0){ parts.push(WX_INTENSITY[k]); remaining = remaining.slice(k.length); }
+      });
+      var descKey = remaining.slice(0,2);
+      if (WX_DESCRIPTOR[descKey]){ parts.push(WX_DESCRIPTOR[descKey]); remaining = remaining.slice(2); }
+      while (remaining.length >= 2){
+        var phenKey = remaining.slice(0,2);
+        if (WX_PHENOMENON[phenKey]){ parts.push(WX_PHENOMENON[phenKey]); remaining = remaining.slice(2); }
+        else break;
+      }
+      return parts.length ? parts.join(" ") : token;
+    }).join(", ");
+  }
+
+  function windCompassPoint(deg){
+    var points = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+    return points[Math.round(deg / 22.5) % 16];
+  }
+
+  function fmtAgo(obsDate){
+    var diffMs = Date.now() - obsDate.getTime();
+    var mins = Math.round(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins === 1) return "1 min ago";
+    if (mins < 60) return mins + " min ago";
+    var hrs = Math.floor(mins / 60);
+    return hrs + "h " + (mins % 60) + "m ago";
+  }
+
+  // ---------- Render ----------
+  function renderStation(data){
+    var fltCat = data.fltCat || data.flight_category || null;
+    var visibMiles = parseVisib(data.visib);
+    var ceiling = getCeiling(data.clouds);
+    if (!fltCat) fltCat = computeFlightCategory(visibMiles, ceiling);
+
+    els.stIcao.textContent = data.icaoId || currentIcao;
+    els.stName.textContent = data.name || "Unknown station";
+    var elevText = (data.elev !== undefined && data.elev !== null) ? Math.round(data.elev * 3.28084) + " ft elev" : "";
+    els.stMeta.textContent = [data.icaoId, elevText].filter(Boolean).join(" • ");
+
+    if (fltCat && CAT_COLORS[fltCat]){
+      els.fltCatBadge.textContent = fltCat;
+      els.fltCatBadge.style.background = CAT_COLORS[fltCat];
+      els.fltCatDesc.textContent = CAT_DESC[fltCat];
+    } else {
+      els.fltCatBadge.textContent = "N/A";
+      els.fltCatBadge.style.background = "var(--text-2)";
+      els.fltCatDesc.textContent = "unavailable";
+    }
+
+    var obsDate = null;
+    if (typeof data.obsTime === "number") obsDate = new Date(data.obsTime * 1000);
+    else if (data.reportTime) obsDate = new Date(data.reportTime.replace(" ", "T") + "Z");
+    els.obsAge.textContent = obsDate ? fmtAgo(obsDate) : "";
+
+    // Wind
+    if (data.wdir === "VRB" || data.wdir === undefined || data.wdir === null){
+      els.windValue.textContent = (data.wspd || 0) + " kt";
+      els.windSub.textContent = data.wdir === "VRB" ? "Variable direction" : "Calm / unavailable";
+      els.windArrowGroup.setAttribute("transform", "rotate(0 26 26)");
+    } else {
+      els.windValue.textContent = data.wdir + "° @ " + data.wspd + " kt";
+      var gust = data.wgst ? (" gusting " + data.wgst + " kt") : "";
+      els.windSub.textContent = windCompassPoint(data.wdir) + gust;
+      els.windArrowGroup.setAttribute("transform", "rotate(" + data.wdir + " 26 26)");
+    }
+
+    // Visibility / weather phenomena
+    els.visValue.textContent = visibMiles !== null ? (visibMiles + (visibMiles >= 10 ? "+" : "") + " sm") : "—";
+    els.wxValue.textContent = decodeWx(data.wxString) || "No significant weather";
+
+    // Clouds
+    els.cloudValue.innerHTML = "";
+    if (data.clouds && data.clouds.length && !(data.clouds.length === 1 && data.clouds[0].cover === "CLR")){
+      data.clouds.forEach(function(c){
+        var text = (CLOUD_COVER[c.cover] || c.cover) + (c.base !== undefined && c.base !== null ? (" " + c.base.toLocaleString() + " ft") : "");
+        els.cloudValue.appendChild($create("div", "layer", text));
+      });
+    } else {
+      els.cloudValue.appendChild($create("div", "layer", "Clear below 12,000 ft"));
+    }
+
+    // Temp / dewpoint
+    if (data.temp !== undefined && data.temp !== null){
+      var tF = cToF(data.temp).toFixed(0);
+      var dF = data.dewp !== undefined && data.dewp !== null ? cToF(data.dewp).toFixed(0) : "—";
+      els.tempValue.textContent = data.temp + "°C / " + tF + "°F";
+      els.spreadValue.textContent = "Dewpoint " + data.dewp + "°C / " + dF + "°F";
+    } else {
+      els.tempValue.textContent = "—";
+      els.spreadValue.textContent = "";
+    }
+
+    // Altimeter
+    if (data.altim !== undefined && data.altim !== null){
+      els.altimValue.textContent = hpaToInHg(data.altim).toFixed(2) + " inHg";
+      els.altimSub.textContent = data.altim.toFixed(1) + " hPa";
+    } else {
+      els.altimValue.textContent = "—";
+      els.altimSub.textContent = "";
+    }
+
+    // Observation time
+    if (obsDate){
+      var hh = String(obsDate.getUTCHours()).padStart(2,"0");
+      var mm = String(obsDate.getUTCMinutes()).padStart(2,"0");
+      var dd = String(obsDate.getUTCDate()).padStart(2,"0");
+      els.obsTimeValue.textContent = dd + hh + mm + "Z";
+      els.obsTimeSub.textContent = fmtAgo(obsDate);
+    } else {
+      els.obsTimeValue.textContent = "—";
+      els.obsTimeSub.textContent = "";
+    }
+
+    els.rawMetar.textContent = data.rawOb || "No raw text available";
+
+    els.metarCard.style.display = "block";
+    els.statusMsg.style.display = "none";
+  }
+
+  function showStatus(msg, isError){
+    els.metarCard.style.display = "none";
+    els.statusMsg.style.display = "block";
+    els.statusMsg.textContent = msg;
+    els.statusMsg.className = isError ? "error" : "";
+  }
+
+  // ---------- TAF ----------
+  var FCST_CHANGE_LABEL = { FM: "From", BECMG: "Becoming", TEMPO: "Temporary" };
+
+  function changeLabel(p){
+    if (p.fcstChange === "PROB") return (p.probability || 30) + "% probability";
+    return FCST_CHANGE_LABEL[p.fcstChange] || "Initial";
+  }
+
+  function formatTafTime(sec){
+    var d = new Date(sec * 1000);
+    var dd = String(d.getUTCDate()).padStart(2, "0");
+    var hh = String(d.getUTCHours()).padStart(2, "0");
+    var mm = String(d.getUTCMinutes()).padStart(2, "0");
+    return dd + "/" + hh + mm + "Z";
+  }
+
+  function buildTafPeriodEl(p){
+    var wrap = $create("div", "taf-period");
+
+    var whenDiv = $create("div", "when");
+    whenDiv.appendChild($create("span", "change-type", changeLabel(p)));
+    whenDiv.appendChild(document.createTextNode(formatTafTime(p.timeFrom) + " → " + formatTafTime(p.timeTo)));
+    wrap.appendChild(whenDiv);
+
+    var catDiv = $create("div", "cat");
+    var isPartial = p.fcstChange === "PROB" || p.fcstChange === "TEMPO";
+    if (!isPartial){
+      var cat = computeFlightCategory(parseVisib(p.visib), getCeiling(p.clouds));
+      if (cat && CAT_COLORS[cat]){
+        var span = $create("span", null, cat);
+        span.style.background = CAT_COLORS[cat];
+        catDiv.appendChild(span);
+      }
+    }
+    wrap.appendChild(catDiv);
+
+    var detailDiv = $create("div", "detail");
+    var lines = [];
+    if (p.wdir !== null && p.wdir !== undefined && p.wspd !== null && p.wspd !== undefined){
+      lines.push((p.wdir === "VRB" ? "Variable" : p.wdir + "°") + " @ " + p.wspd + " kt" +
+        (p.wgst ? (" gusting " + p.wgst + " kt") : ""));
+    }
+    var visibMiles = parseVisib(p.visib);
+    if (visibMiles !== null){
+      lines.push(visibMiles + (String(p.visib).indexOf("+") > -1 ? "+" : "") + " sm visibility");
+    }
+    if (p.wxString) lines.push(decodeWx(p.wxString));
+    if (p.clouds && p.clouds.length){
+      lines.push(p.clouds.map(function(c){
+        var base = (c.base !== undefined && c.base !== null) ? (" " + c.base.toLocaleString() + " ft") : "";
+        return (CLOUD_COVER[c.cover] || c.cover) + base + (c.type ? (" " + c.type) : "");
+      }).join(", "));
+    }
+    if (!lines.length) lines.push("No change from prior period");
+    lines.forEach(function(line){ detailDiv.appendChild($create("div", null, line)); });
+    wrap.appendChild(detailDiv);
+
+    return wrap;
+  }
+
+  function renderTaf(data){
+    els.tafValidity.textContent = "Valid " + formatTafTime(data.validTimeFrom) + " – " + formatTafTime(data.validTimeTo);
+    els.tafPeriods.innerHTML = "";
+    (data.fcsts || []).forEach(function(p){ els.tafPeriods.appendChild(buildTafPeriodEl(p)); });
+    els.rawTaf.textContent = data.rawTAF || "No raw text available";
+    els.tafCard.style.display = "block";
+    els.tafStatus.style.display = "none";
+  }
+
+  function hideTaf(){
+    els.tafCard.style.display = "none";
+    els.tafStatus.style.display = "none";
+  }
+
+  function loadTaf(icao){
+    els.tafCard.style.display = "none";
+    els.tafStatus.style.display = "block";
+    els.tafStatus.className = "";
+    els.tafStatus.textContent = "Fetching TAF for " + icao + "…";
+    fetchWxJson("taf", icao)
+      .then(function(list){
+        if (!list.length){
+          els.tafStatus.className = "error";
+          els.tafStatus.textContent = "No TAF available for " + icao + ".";
+          return;
+        }
+        renderTaf(list[0]);
+      })
+      .catch(function(err){
+        els.tafStatus.className = "error";
+        els.tafStatus.textContent = "Could not load TAF: " + err.message;
+      });
+  }
+
+  function refreshTafIfNeeded(){
+    if (currentMode !== "IFR" || !currentIcao){ hideTaf(); return; }
+    loadTaf(currentIcao);
+  }
+
+  function applyModeUI(){
+    els.planToggle.querySelectorAll(".plan-btn").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.mode === currentMode);
+    });
+    els.planHint.textContent = currentMode === "IFR" ? "Also fetches the destination TAF forecast" : "Current METAR only";
+  }
+
+  // ---------- Fetch ----------
+  function fetchWxJson(kind, icao){
+    var base = kind === "taf" ? TAF_API_URL : API_URL;
+    return fetch(base + "?ids=" + encodeURIComponent(icao) + "&format=json")
+      .then(function(res){
+        if (!res.ok) throw new Error("Network error (" + res.status + ")");
+        return res.text();
+      })
+      .then(function(text){
+        var json;
+        try { json = text.trim() ? JSON.parse(text) : []; }
+        catch(e){ json = []; }
+        return Array.isArray(json) ? json : [];
+      });
+  }
+
+  function loadStation(icao){
+    icao = (icao || "").trim().toUpperCase();
+    if (!/^[A-Z0-9]{3,4}$/.test(icao)){
+      showStatus("Enter a valid 3-4 character ICAO station code.", true);
+      return;
+    }
+    currentIcao = icao;
+    els.icaoInput.value = icao;
+    clearTimers();
+    showStatus("Fetching latest METAR for " + icao + "…", false);
+
+    fetchWxJson("metar", icao)
+      .then(function(list){
+        if (!list.length){
+          showStatus("No recent METAR found for " + icao + ". Check the ICAO code and try again.", true);
+          hideTaf();
+          return;
+        }
+        renderStation(list[0]);
+        pushRecent(icao);
+        startAutoRefresh();
+        refreshTafIfNeeded();
+      })
+      .catch(function(err){
+        showStatus("Could not load METAR data: " + err.message, true);
+        hideTaf();
+      });
+  }
+
+  function clearTimers(){
+    if (refreshTimer) clearTimeout(refreshTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+  }
+
+  function startAutoRefresh(){
+    clearTimers();
+    var remaining = REFRESH_MS;
+    updateCountdownLabel(remaining);
+    countdownTimer = setInterval(function(){
+      remaining -= 1000;
+      if (remaining <= 0){ return; }
+      updateCountdownLabel(remaining);
+    }, 1000);
+    refreshTimer = setTimeout(function(){
+      if (currentIcao) loadStation(currentIcao);
+    }, REFRESH_MS);
+  }
+
+  function updateCountdownLabel(ms){
+    var totalSec = Math.max(0, Math.round(ms / 1000));
+    var m = Math.floor(totalSec / 60);
+    var s = totalSec % 60;
+    els.countdown.textContent = m + ":" + String(s).padStart(2,"0");
+  }
+
+  // ---------- Events ----------
+  els.lookupBtn.addEventListener("click", function(){ loadStation(els.icaoInput.value); });
+  els.icaoInput.addEventListener("keydown", function(e){ if (e.key === "Enter") loadStation(els.icaoInput.value); });
+  els.icaoInput.addEventListener("input", function(){
+    els.icaoInput.value = els.icaoInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  });
+  els.refreshBtn.addEventListener("click", function(){ if (currentIcao) loadStation(currentIcao); });
+  els.copyBtn.addEventListener("click", function(){
+    var text = els.rawMetar.textContent;
+    if (navigator.clipboard){
+      navigator.clipboard.writeText(text).then(function(){
+        els.copyBtn.textContent = "Copied!";
+        setTimeout(function(){ els.copyBtn.textContent = "Copy"; }, 1500);
+      });
+    }
+  });
+  els.copyTafBtn.addEventListener("click", function(){
+    var text = els.rawTaf.textContent;
+    if (navigator.clipboard){
+      navigator.clipboard.writeText(text).then(function(){
+        els.copyTafBtn.textContent = "Copied!";
+        setTimeout(function(){ els.copyTafBtn.textContent = "Copy"; }, 1500);
+      });
+    }
+  });
+  els.planToggle.addEventListener("click", function(e){
+    var btn = e.target.closest(".plan-btn");
+    if (!btn || btn.dataset.mode === currentMode) return;
+    currentMode = btn.dataset.mode;
+    localStorage.setItem(MODE_KEY, currentMode);
+    applyModeUI();
+    refreshTafIfNeeded();
+  });
+
+  renderQuickAccess();
+  renderRecent();
+  applyModeUI();
+
+  var lastRecent = getRecent();
+  if (lastRecent.length){ loadStation(lastRecent[0]); }
+})();
+</script>
+</body>
+</html>
