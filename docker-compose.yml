@@ -8,4 +8,3 @@ services:
     ports:
       - "8791:8791"
     command: ["node", "server.js"]
-	
